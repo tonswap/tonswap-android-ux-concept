@@ -4760,6 +4760,7 @@
     <string name="HideCaption">Hide caption</string>
     <string name="TapForForwardingOptions">Tap here for forwarding options</string>
     <string name="ChangeColors">Change colors</string>
+    <string name="SendMoney">Send Money</string>
     <string name="SelectTheme">Select theme</string>
     <string name="ChatApplyTheme">Apply Theme</string>
     <string name="ChatResetTheme">Reset Theme</string>

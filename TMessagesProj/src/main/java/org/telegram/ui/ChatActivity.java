@@ -190,6 +190,7 @@ import org.telegram.ui.Components.ChatBigEmptyView;
 import org.telegram.ui.Components.ChatBlurredFrameLayout;
 import org.telegram.ui.Components.ChatGreetingsView;
 import org.telegram.ui.Components.ChatScrimPopupContainerLayout;
+import org.telegram.ui.Components.ChatSendMoneyBottomSheet;
 import org.telegram.ui.Components.ChatThemeBottomSheet;
 import org.telegram.ui.Components.ChecksHintView;
 import org.telegram.ui.Components.ClearHistoryAlert;
@@ -774,6 +775,7 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
 
     private boolean isPauseOnThemePreview;
     private ChatThemeBottomSheet chatThemeBottomSheet;
+    private ChatSendMoneyBottomSheet chatSendMoneyBottomSheet;
     private ThemeDelegate themeDelegate;
     private ChatActivityMemberRequestsDelegate pendingRequestsDelegate;
 
@@ -1221,6 +1223,7 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
     private final static int save_to = 25;
     private final static int auto_delete_timer = 26;
     private final static int change_colors = 27;
+    private final static int send_money = 28;
 
     private final static int bot_help = 30;
     private final static int bot_settings = 31;
@@ -2371,6 +2374,9 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
                 } else if (id == change_colors) {
                     showChatThemeBottomSheet();
                 }
+                else if (id == send_money){
+                    showSendMoneyBottomSheet();
+                }
             }
         });
         actionBar.setInterceptTouchEventListener((view, motionEvent) -> {
@@ -2698,6 +2704,9 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
             if (themeDelegate.isThemeChangeAvailable()) {
                 headerItem.addSubItem(change_colors, R.drawable.msg_colors, LocaleController.getString("ChangeColors", R.string.ChangeColors), themeDelegate);
             }
+
+            headerItem.addSubItem(send_money, R.drawable.msg_gallery, LocaleController.getString("SendMoney", R.string.SendMoney), themeDelegate);
+
             if (currentUser == null || !currentUser.self) {
                 muteItem = headerItem.addSubItem(mute, R.drawable.msg_mute, null, themeDelegate);
             }
@@ -26335,6 +26344,18 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
         setChildrenEnabled(contentView, false);
         showDialog(chatThemeBottomSheet, dialogInterface -> {
             chatThemeBottomSheet = null;
+            chatListView.setOnInterceptTouchListener(null);
+            setChildrenEnabled(contentView, true);
+            ChatThemeController.clearWallpaperThumbImages();
+        });
+    }
+
+    private void showSendMoneyBottomSheet() {
+        chatSendMoneyBottomSheet = new ChatSendMoneyBottomSheet(ChatActivity.this, themeDelegate);
+        chatListView.setOnInterceptTouchListener(event -> true);
+        setChildrenEnabled(contentView, false);
+        showDialog(chatSendMoneyBottomSheet, dialogInterface -> {
+            chatSendMoneyBottomSheet = null;
             chatListView.setOnInterceptTouchListener(null);
             setChildrenEnabled(contentView, true);
             ChatThemeController.clearWallpaperThumbImages();
