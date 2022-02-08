@@ -6,6 +6,7 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
+import android.content.DialogInterface;
 import android.graphics.Bitmap;
 import android.graphics.BitmapShader;
 import android.graphics.Canvas;
@@ -101,8 +102,9 @@ public class ChatSendMoneyBottomSheet extends BottomSheet implements Notificatio
     private float changeDayNightViewProgress;
     private ValueAnimator changeDayNightViewAnimator;
     HintView hintView;
-    private RecyclerView recyclerViewCurrency;
+    private RecyclerCurrencyView recyclerViewCurrency;
     ArrayList<Integer> arrCurrency;
+    ArrayList<CurrencyItem> arrCurrencyItems;
     RecyclerView.LayoutManager RecyclerViewLayoutManager;
     CurrencyAdapter adapterCurrency;
     LinearLayoutManager HorizontalLayout;
@@ -136,8 +138,12 @@ public class ChatSendMoneyBottomSheet extends BottomSheet implements Notificatio
         rootLayout.addView(titleView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP | Gravity.START, 0, 0, 62, 0));
 
         //ORBZZZZZZ
+        initCurrencyItems();
+
         editFromView = new EditText(getContext());
-        editFromView.setText("10");
+        final ViewGroup.LayoutParams lparams = new ViewGroup.LayoutParams(50,30); // Width , height
+        editFromView.setLayoutParams(lparams);
+        editFromView.setText("0");
         editFromView.setInputType(InputType.TYPE_CLASS_NUMBER);
         editFromView.addTextChangedListener(new TextWatcher() {
             @Override
@@ -147,10 +153,7 @@ public class ChatSendMoneyBottomSheet extends BottomSheet implements Notificatio
             public void onTextChanged(CharSequence charSequence, int i, int i1, int i2) {
                 try {
                     if (isCalculated == false) {
-                        int from = Integer.parseInt(charSequence.toString());
-                        from *= 3;
-                        isCalculated = true;
-                        editToView.setText("" + from);
+                        calculateToCurrency(charSequence.toString());
                     }
                     else{
                         isCalculated = false;
@@ -164,14 +167,15 @@ public class ChatSendMoneyBottomSheet extends BottomSheet implements Notificatio
             @Override
             public void afterTextChanged(Editable editable) { }
         });
-        rootLayout.addView(editFromView, LayoutHelper.createFrame(50, LayoutHelper.WRAP_CONTENT, Gravity.TOP | Gravity.START, 30, 50, 0, 0));
-
+        int heightCurrencyLine = 40;
+        rootLayout.addView(editFromView, LayoutHelper.createFrame(80, heightCurrencyLine, Gravity.TOP | Gravity.START, 30, 50, 0, 0));
         textFromCurr = new TextView(getContext());
-        textFromCurr.setText("Ether");
-        rootLayout.addView(textFromCurr, LayoutHelper.createFrame(50, LayoutHelper.WRAP_CONTENT, Gravity.TOP | Gravity.START, 90, 50, 0, 0));
+        textFromCurr.setText(arrCurrencyItems.get(0).currencyName);
+        textFromCurr.setGravity(Gravity.CENTER_VERTICAL);
+        rootLayout.addView(textFromCurr, LayoutHelper.createFrame(50, heightCurrencyLine, Gravity.TOP | Gravity.START, 120, 50, 0, 0));
 
         editToView = new EditText(getContext());
-        editToView.setText("3");
+        editToView.setText("0");
         editToView.setInputType(InputType.TYPE_CLASS_NUMBER);
         editToView.addTextChangedListener(new TextWatcher() {
             @Override
@@ -181,10 +185,16 @@ public class ChatSendMoneyBottomSheet extends BottomSheet implements Notificatio
             public void onTextChanged(CharSequence charSequence, int i, int i1, int i2) {
                 try {
                     if (isCalculated == false) {
-                        int to = Integer.parseInt(charSequence.toString());
-                        to *= 3;
-                        isCalculated = true;
-                        editFromView.setText("" + to);
+                        int selectedTo = adapterCurrency.selectedTo;
+                        if (selectedTo != -1){
+                            isCalculated = true;
+                            double toValue = Double.parseDouble(charSequence.toString());
+                            CurrencyItem itemFrom = arrCurrencyItems.get(adapterCurrency.selectedFrom);
+                            CurrencyItem itemTo = arrCurrencyItems.get(selectedTo);
+                            Double convertedValue = (toValue * itemTo.usdValue)/itemFrom.usdValue;
+                            editFromView.setText(String.format("%.2f", convertedValue));
+                            changePayButtonText();
+                        }
                     }
                     else{
                         isCalculated = false;
@@ -198,21 +208,47 @@ public class ChatSendMoneyBottomSheet extends BottomSheet implements Notificatio
             @Override
             public void afterTextChanged(Editable editable) { }
         });
-        rootLayout.addView(editToView, LayoutHelper.createFrame(50, LayoutHelper.WRAP_CONTENT, Gravity.TOP | Gravity.START, 150, 50, 0, 0));
+        editToView.setVisibility(View.INVISIBLE);
+        rootLayout.addView(editToView, LayoutHelper.createFrame(80, heightCurrencyLine, Gravity.TOP | Gravity.START, 160, 50, 0, 0));
 
         textToCurr = new TextView(getContext());
-        textToCurr.setText("Bitcoin");
-        rootLayout.addView(textToCurr, LayoutHelper.createFrame(50, LayoutHelper.WRAP_CONTENT, Gravity.TOP | Gravity.START, 210, 50, 0, 0));
+        textToCurr.setGravity(Gravity.CENTER_VERTICAL);
+        textToCurr.setVisibility(View.INVISIBLE);
+        rootLayout.addView(textToCurr, LayoutHelper.createFrame(50, heightCurrencyLine, Gravity.TOP | Gravity.START, 250, 50, 0, 0));
 
-
-        recyclerViewCurrency = new RecyclerView(getContext());
+        recyclerViewCurrency = new RecyclerCurrencyView(getContext());
         RecyclerViewLayoutManager = new LinearLayoutManager(getContext());
         recyclerViewCurrency.setLayoutManager(RecyclerViewLayoutManager);
         AddItemsToRecyclerViewArrayList();
-        adapterCurrency = new CurrencyAdapter(arrCurrency);
-        HorizontalLayout = new LinearLayoutManager(getContext(), LinearLayoutManager.HORIZONTAL,
-                false);
+        HorizontalLayout = new LinearLayoutManager(getContext(), LinearLayoutManager.HORIZONTAL,false);
         recyclerViewCurrency.setLayoutManager(HorizontalLayout);
+        adapterCurrency = new CurrencyAdapter(arrCurrencyItems, getThemedColor(Theme.key_dialogTextBlack),
+                new CurrencyAdapter.OnItemClickListener() {
+                    @Override
+                    public void onItemClick(View view, int position) {
+                        if (position < 4){ //from
+                            if (adapterCurrency.selectedFrom == position)
+                                return;
+                            adapterCurrency.selectedFrom = position;
+                            textFromCurr.setText(arrCurrencyItems.get(position).currencyName);
+                        }
+                        else{ //to
+                            if (adapterCurrency.selectedTo == position){
+                                editToView.setVisibility(View.INVISIBLE);
+                                textToCurr.setVisibility(View.INVISIBLE);
+                                adapterCurrency.selectedTo = -1;
+                            }
+                            else {
+                                adapterCurrency.selectedTo = position;
+                                calculateToCurrency(editFromView.getText().toString());
+                                textToCurr.setText(arrCurrencyItems.get(position).currencyName);
+                                editToView.setVisibility(View.VISIBLE);
+                                textToCurr.setVisibility(View.VISIBLE);
+                            }
+                        }
+                        changePayButtonText();
+                    }
+                });
         recyclerViewCurrency.setAdapter(adapterCurrency);
 
         recyclerViewCurrency.setClipChildren(false);
@@ -222,7 +258,7 @@ public class ChatSendMoneyBottomSheet extends BottomSheet implements Notificatio
         recyclerViewCurrency.setNestedScrollingEnabled(false);
         recyclerViewCurrency.setPadding(AndroidUtilities.dp(12), 0, AndroidUtilities.dp(12), 0);
 
-        rootLayout.addView(recyclerViewCurrency, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP | Gravity.START, 20, 100, 20, 0));
+        rootLayout.addView(recyclerViewCurrency, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 70, Gravity.TOP | Gravity.START, 20, 100, 20, 0));
 
 
 
@@ -315,7 +351,8 @@ public class ChatSendMoneyBottomSheet extends BottomSheet implements Notificatio
         //rootLayout.addView(recyclerView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 104, Gravity.START, 0, 44, 0, 0));
 
         applyButton = new View(getContext());
-        applyButton.setBackground(Theme.createSimpleSelectorRoundRectDrawable(AndroidUtilities.dp(6), getThemedColor(Theme.key_featuredStickers_addButton), getThemedColor(Theme.key_featuredStickers_addButtonPressed)));
+        //applyButton.setBackground(Theme.createSimpleSelectorRoundRectDrawable(AndroidUtilities.dp(6), getThemedColor(Theme.key_featuredStickers_addButton), getThemedColor(Theme.key_featuredStickers_addButtonPressed)));
+        applyButton.setBackgroundColor(0xff50a7ea);
         applyButton.setEnabled(false);
         //applyButton.setOnClickListener((view) -> applySelectedTheme());
         applyButton.setOnClickListener((view) -> applySendMoney());
@@ -328,7 +365,6 @@ public class ChatSendMoneyBottomSheet extends BottomSheet implements Notificatio
         resetTextView.setLines(1);
         resetTextView.setSingleLine(true);
         //resetTextView.setText(themeDelegate.getCurrentTheme() == null ? LocaleController.getString("DoNoSetTheme", R.string.DoNoSetTheme) : LocaleController.getString("ChatResetTheme", R.string.ChatResetTheme));
-        resetTextView.setText("Pay X Bitcoin");
         resetTextView.setTextColor(getThemedColor(Theme.key_featuredStickers_buttonText));
         resetTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
         resetTextView.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
@@ -340,18 +376,83 @@ public class ChatSendMoneyBottomSheet extends BottomSheet implements Notificatio
         applyTextView.setGravity(Gravity.CENTER);
         applyTextView.setLines(1);
         applyTextView.setSingleLine(true);
-        applyTextView.setText("Pay X Bitcoin");
         applyTextView.setTextColor(getThemedColor(Theme.key_featuredStickers_buttonText));
         applyTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
         applyTextView.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
         applyTextView.setVisibility(View.INVISIBLE);
-        rootLayout.addView(applyTextView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.START, 16, 162, 16, 16));
+        changePayButtonText();
+        rootLayout.addView(applyTextView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.START, 16, 176, 16, 16));
+    }
+
+    private void calculateToCurrency(String fromText){
+        int selectedTo = adapterCurrency.selectedTo;
+        if (selectedTo != -1){
+            isCalculated = true;
+            double fromValue = Double.parseDouble(fromText);
+            CurrencyItem itemFrom = arrCurrencyItems.get(adapterCurrency.selectedFrom);
+            CurrencyItem itemTo = arrCurrencyItems.get(selectedTo);
+            Double convertedValue = (fromValue * itemFrom.usdValue)/itemTo.usdValue;
+            editToView.setText(String.format("%.2f", convertedValue));
+        }
+        changePayButtonText();
+    }
+
+    private void changePayButtonText(){
+        StringBuilder sb = new StringBuilder("Pay ");
+        sb.append(getAmountAndCurrency());
+        applyTextView.setText(sb.toString());
+        resetTextView.setText(sb.toString());
+    }
+
+    private String getAmountAndCurrency(){
+        String amount = "0";
+        String currency = "";
+        if (adapterCurrency.selectedTo != -1){
+            amount = editToView.getText().toString();
+            currency = adapterCurrency.getSelectedToItem().currencyName;
+        }
+        else{
+            amount = editFromView.getText().toString();
+            currency = adapterCurrency.getSelectedFromItem().currencyName;
+        }
+        return TextUtils.isEmpty(amount) ? "0" : amount + " " + currency;
+    }
+
+    private void initCurrencyItems() {
+        arrCurrencyItems = new ArrayList<>();
+        arrCurrencyItems.add(new CurrencyItem("ETH", R.drawable.ether, 3006.35));
+        arrCurrencyItems.add(new CurrencyItem("BTC", R.drawable.bitcoin, 41315.60));
+        arrCurrencyItems.add(new CurrencyItem("SOL", R.drawable.solana, 115.39));
+        arrCurrencyItems.add(new CurrencyItem("SHB", R.drawable.shib, 0.00002262));
+        arrCurrencyItems.add(new CurrencyItem("ETH",R.drawable.ether, 3006.35));
+        arrCurrencyItems.add(new CurrencyItem("BTC",R.drawable.bitcoin, 41315.60));
+        arrCurrencyItems.add(new CurrencyItem("SOL",R.drawable.solana, 115.39));
+        arrCurrencyItems.add(new CurrencyItem("SHB",R.drawable.shib, 0.00002262));
     }
 
     private void applySendMoney() {
         TLRPC.User user = chatActivity.getCurrentUser();
-        Toast.makeText(getContext(), "Sent X Money to " + user.first_name + " " + user.last_name,
-                Toast.LENGTH_LONG).show();
+        StringBuilder sb = new StringBuilder("Swap and pay ");
+        sb.append(user.first_name).append(" ").append(user.last_name).append(" ");
+        sb.append(getAmountAndCurrency());
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+        builder.setTitle("Pay Tokens");
+        builder.setMessage(sb.toString());
+        builder.setPositiveButton("PAY", new DialogInterface.OnClickListener(){
+            @Override
+            public void onClick(DialogInterface dialog, int which){
+                dialog.dismiss();
+            }
+        });
+
+        builder.setNegativeButton("CANCEL", new DialogInterface.OnClickListener(){
+            @Override
+            public void onClick(DialogInterface dialog, int which){
+                dialog.dismiss();
+            }
+        });
+        builder.show();
     }
 
     private void AddItemsToRecyclerViewArrayList() {
@@ -1005,6 +1106,20 @@ public class ChatSendMoneyBottomSheet extends BottomSheet implements Notificatio
             }
             selectedItemPosition = position;
             notifyItemChanged(selectedItemPosition);
+        }
+
+    }
+
+    public static class CurrencyItem {
+
+        public String currencyName;
+        public int imageResId;
+        public double usdValue;
+
+        public CurrencyItem(String name, int img, double usdVal){
+            currencyName = name;
+            imageResId = img;
+            usdValue = usdVal;
         }
 
     }
