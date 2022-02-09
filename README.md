@@ -1,3 +1,11 @@
+# Android Native UX Concept
+
+This is a fork of Telegram messenger native Android app with a UX concept for an AMM routed payments added inside. The goal of this is to demonstrate how regular messenger users in a popular app could be supported natively in order to provide the best user experience for payments (with currency swapping support).
+
+## Work in progress!
+
+> This project is still experimental and in an ongoing research phase.
+
 ## Telegram messenger for Android
 
 [Telegram](https://telegram.org) is a messaging app with a focus on speed and security. It’s superfast, simple and free.
